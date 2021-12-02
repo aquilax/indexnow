@@ -5,7 +5,6 @@ package indexnow
 import (
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -166,7 +165,7 @@ func TestIndexNow_SubmitSingleURL(t *testing.T) {
 				}),
 			},
 			args{"http://www.example.org"},
-			200,
+			http.StatusOK,
 			false,
 		},
 	}
@@ -182,7 +181,7 @@ func TestIndexNow_SubmitSingleURL(t *testing.T) {
 				t.Errorf("IndexNow.SubmitSingleURL() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got.StatusCode, tt.wantStatusCode) {
+			if got.StatusCode != tt.wantStatusCode {
 				t.Errorf("IndexNow.SubmitSingleURL() = %v, want %v", got.StatusCode, tt.wantStatusCode)
 			}
 		})
@@ -192,38 +191,71 @@ func TestIndexNow_SubmitSingleURL(t *testing.T) {
 func TestIndexNow_SubmitBatchURLs(t *testing.T) {
 	type fields struct {
 		searchEngineHost string
-		key              string
-		keyLocation      string
-		client           *http.Client
+		own              *Ownership
+		rt               http.RoundTripper
 	}
 	type args struct {
 		host      string
 		urlsToAdd []string
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *http.Response
-		wantErr bool
+		name           string
+		fields         fields
+		args           args
+		wantStatusCode int
+		wantErr        bool
 	}{
-		// TODO: Add test cases.
+		{
+			"submits batch of urls",
+			fields{
+				"www.example.com",
+				&Ownership{KeyLocation: "http://example.org/keyLocation.txt"},
+				roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					wantSubmitUrl := "https://www.example.com/indexnow"
+					wantContentType := "application/json; charset=utf-8"
+					wantBody := `{"host":"example.org","key":"","keyLocation":"http://example.org/keyLocation.txt","urlList":["https://example.org","http://example.org","http://example.org/test"]}`
+					if r.URL.String() != wantSubmitUrl {
+						t.Errorf("IndexNow.SubmitSingleURL() url = %v, want %v", r.URL.String(), wantSubmitUrl)
+					}
+					if r.Header.Get("content-type") != wantContentType {
+						t.Errorf("IndexNow.SubmitSingleURL() contentType = %v, want %v", r.Header.Get("content-type"), wantContentType)
+					}
+					body, _ := ioutil.ReadAll(r.Body)
+					if string(body) != wantBody {
+						t.Errorf("IndexNow.SubmitSingleURL() body = %v, want %v", string(body), wantBody)
+					}
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(strings.NewReader("success")),
+					}, nil
+				}),
+			},
+			args{
+				"example.org",
+				[]string{
+					"https://example.org",
+					"http://example.org",
+					"http://example.org/test",
+				},
+			},
+			http.StatusOK,
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			in := &IndexNow{
-				searchEngineHost: tt.fields.searchEngineHost,
-				key:              tt.fields.key,
-				keyLocation:      tt.fields.keyLocation,
-				client:           tt.fields.client,
-			}
+			in := New(
+				tt.fields.searchEngineHost,
+				tt.fields.own,
+				tt.fields.rt,
+			)
 			got, err := in.SubmitBatchURLs(tt.args.host, tt.args.urlsToAdd)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("IndexNow.SubmitBatchURLs() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("IndexNow.SubmitBatchURLs() = %v, want %v", got, tt.want)
+			if got.StatusCode != tt.wantStatusCode {
+				t.Errorf("IndexNow.SubmitBatchURLs() = %v, want %v", got.StatusCode, tt.wantStatusCode)
 			}
 		})
 	}

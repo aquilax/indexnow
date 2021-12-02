@@ -93,7 +93,7 @@ func (in *IndexNow) SubmitSingleURL(urlToAdd string) (*http.Response, error) {
 // SubmitBatchURLs submits a batch of URLs for indexing
 func (in *IndexNow) SubmitBatchURLs(host string, urlsToAdd []string) (*http.Response, error) {
 	if len(urlsToAdd) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("no URLs to submit")
 	}
 	if len(urlsToAdd) > MAX_BATCH_SIZE {
 		return nil, fmt.Errorf("batch size can contain up to %d URLs, %d given", MAX_BATCH_SIZE, len(urlsToAdd))
