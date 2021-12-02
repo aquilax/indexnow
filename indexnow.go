@@ -51,7 +51,7 @@ func New(searchEngineHost string, own *Ownership, rt http.RoundTripper) *IndexNo
 
 func GetSubmitUrl(searchEngineHost string) url.URL {
 	return url.URL{
-		Scheme: "https:",
+		Scheme: "https",
 		Host:   searchEngineHost,
 		Path:   "indexnow",
 	}
@@ -60,11 +60,13 @@ func GetSubmitUrl(searchEngineHost string) url.URL {
 func GetSingleSubmitUrl(searchEngineHost string, key string, keyLocation string, urlToAdd string) string {
 	// https://<searchengine>/indexnow?url=url-changed&key=your-key
 	u := GetSubmitUrl(searchEngineHost)
-	u.Query().Set("url", urlToAdd)
-	u.Query().Set("key", key)
+	q := u.Query()
+	q.Set("url", urlToAdd)
+	q.Set("key", key)
 	if keyLocation != "" {
-		u.Query().Set("keyLocation", keyLocation)
+		q.Set("keyLocation", keyLocation)
 	}
+	u.RawQuery = q.Encode()
 	return u.String()
 }
 
