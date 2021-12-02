@@ -13,6 +13,7 @@ import (
 const MAX_BATCH_SIZE = 10000
 const SUBMISSION_CONTENT_TYPE = "application/json; charset=utf-8"
 
+// IndexNow client
 type IndexNow struct {
 	searchEngineHost string
 	key              string
@@ -20,11 +21,13 @@ type IndexNow struct {
 	client           *http.Client
 }
 
+// Ownership contains key or key location for claiming resource ownership
 type Ownership struct {
 	Key         string
 	KeyLocation string
 }
 
+// SubmissionPayload contains POST payload when submitting multiple URLs
 type SubmissionPayload struct {
 	Host        string   `json:"host"`
 	Key         string   `json:"key"`
@@ -32,6 +35,7 @@ type SubmissionPayload struct {
 	URLList     []string `json:"urlList"`
 }
 
+// New creates IndexNow client
 func New(searchEngineHost string, own *Ownership, rt http.RoundTripper) *IndexNow {
 	key := ""
 	keyOwnership := ""
@@ -49,6 +53,7 @@ func New(searchEngineHost string, own *Ownership, rt http.RoundTripper) *IndexNo
 	}
 }
 
+// GetSubmitUrl return URL struct for search engine given host name
 func GetSubmitUrl(searchEngineHost string) url.URL {
 	return url.URL{
 		Scheme: "https",
@@ -57,8 +62,10 @@ func GetSubmitUrl(searchEngineHost string) url.URL {
 	}
 }
 
+// GetSingleSubmitUrl returns submission URL for singe URL
+// Schema: https://<searchengine>/indexnow?url=url-changed&key=your-key
 func GetSingleSubmitUrl(searchEngineHost string, key string, keyLocation string, urlToAdd string) string {
-	// https://<searchengine>/indexnow?url=url-changed&key=your-key
+
 	u := GetSubmitUrl(searchEngineHost)
 	q := u.Query()
 	q.Set("url", urlToAdd)
@@ -70,6 +77,7 @@ func GetSingleSubmitUrl(searchEngineHost string, key string, keyLocation string,
 	return u.String()
 }
 
+// SubmitSingleURL submits single URL for indexing
 func (in *IndexNow) SubmitSingleURL(urlToAdd string) (*http.Response, error) {
 	urlToSubmit := GetSingleSubmitUrl(in.searchEngineHost, in.key, in.keyLocation, urlToAdd)
 	resp, err := in.client.Get(urlToSubmit)
@@ -82,7 +90,11 @@ func (in *IndexNow) SubmitSingleURL(urlToAdd string) (*http.Response, error) {
 	return resp, nil
 }
 
+// SubmitBatchURLs submits a batch of URLs for indexing
 func (in *IndexNow) SubmitBatchURLs(host string, urlsToAdd []string) (*http.Response, error) {
+	if len(urlsToAdd) == 0 {
+		return nil, nil
+	}
 	if len(urlsToAdd) > MAX_BATCH_SIZE {
 		return nil, fmt.Errorf("batch size can contain up to %d URLs, %d given", MAX_BATCH_SIZE, len(urlsToAdd))
 	}

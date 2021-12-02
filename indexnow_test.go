@@ -3,10 +3,18 @@
 package indexnow
 
 import (
+	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+type roundTripFunc func(r *http.Request) (*http.Response, error)
+
+func (rtp roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return rtp(r)
+}
 
 func TestNew(t *testing.T) {
 	type args struct {
@@ -19,12 +27,39 @@ func TestNew(t *testing.T) {
 		args args
 		want *IndexNow
 	}{
-		// TODO: Add test cases.
+		{
+			"initializes the struct correctly",
+			args{
+				"example.com",
+				&Ownership{
+					Key:         "key",
+					KeyLocation: "keyLocation",
+				},
+				roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(strings.NewReader("")),
+					}, nil
+				}),
+			},
+			&IndexNow{
+				searchEngineHost: "example.com",
+				key:              "key",
+				keyLocation:      "keyLocation",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := New(tt.args.searchEngineHost, tt.args.own, tt.args.rt); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("New() = %v, want %v", got, tt.want)
+			got := New(tt.args.searchEngineHost, tt.args.own, tt.args.rt)
+			if got.searchEngineHost != tt.want.searchEngineHost {
+				t.Errorf("New().searchHost = %v, want %v", got.searchEngineHost, tt.want.searchEngineHost)
+			}
+			if got.key != tt.want.key {
+				t.Errorf("New().key = %v, want %v", got.key, tt.want.key)
+			}
+			if got.keyLocation != tt.want.keyLocation {
+				t.Errorf("New().keyLocation = %v, want %v", got.keyLocation, tt.want.keyLocation)
 			}
 		})
 	}
@@ -108,13 +143,32 @@ func TestIndexNow_SubmitSingleURL(t *testing.T) {
 		urlToAdd string
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *http.Response
-		wantErr bool
+		name           string
+		fields         fields
+		args           args
+		wantStatusCode int
+		wantErr        bool
 	}{
-		// TODO: Add test cases.
+		{
+			"submitting single url works as expected",
+			fields{
+				"www.example.com",
+				&Ownership{Key: "key"},
+				roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					wantSubmitUrl := "https://www.example.com/indexnow?key=key&url=http%3A%2F%2Fwww.example.org"
+					if r.URL.String() != wantSubmitUrl {
+						t.Errorf("IndexNow.SubmitSingleURL() url = %v, want %v", r.URL.String(), wantSubmitUrl)
+					}
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(strings.NewReader("success")),
+					}, nil
+				}),
+			},
+			args{"http://www.example.org"},
+			200,
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -128,8 +182,8 @@ func TestIndexNow_SubmitSingleURL(t *testing.T) {
 				t.Errorf("IndexNow.SubmitSingleURL() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("IndexNow.SubmitSingleURL() = %v, want %v", got, tt.want)
+			if !reflect.DeepEqual(got.StatusCode, tt.wantStatusCode) {
+				t.Errorf("IndexNow.SubmitSingleURL() = %v, want %v", got.StatusCode, tt.wantStatusCode)
 			}
 		})
 	}
